@@ -1,73 +1,159 @@
-# React + TypeScript + Vite
+# Cat Hop Rush
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+一款竖屏 H5 休闲小游戏。玩家控制一只猫猫跳跃，躲开迎面而来的箱子，尽量吃到小鱼拿分。项目使用原生 Canvas 实现游戏主体，没有引入 Phaser、Pixi 等游戏引擎，比较适合作为前端面试中的小游戏项目展示。
 
-Currently, two official plugins are available:
+## 在线 Demo
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+> 待部署：`https://your-demo-url.com`
 
-## React Compiler
+## 项目截图
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+> 待补充截图：`docs/screenshot.png`
 
-## Expanding the ESLint configuration
+## 玩法介绍
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- 点击屏幕、触摸屏幕或按空格键，让猫猫跳跃。
+- 箱子会从右侧不断出现，碰到箱子游戏结束。
+- 小鱼会随机出现，吃到小鱼可以加分。
+- 分数越高，游戏速度越快。
+- 游戏结束后可以重新开始，也可以复制战绩分享给别人。
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## 技术栈
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- React：负责界面状态、开始界面、HUD、结束面板等 UI。
+- TypeScript：为游戏状态、角色、障碍物、道具等数据结构提供类型约束。
+- Tailwind CSS：快速完成移动端界面和面板样式。
+- HTML5 Canvas：负责游戏主体绘制，包括背景、角色、障碍物、粒子效果。
+- Vite：负责开发服务器和生产构建。
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 核心功能
+
+- 竖屏移动端适配，使用 `480x800` 作为虚拟设计尺寸。
+- Canvas 按屏幕等比缩放，并处理 `devicePixelRatio`，高清屏不模糊。
+- 支持点击、触摸、空格键三种输入方式。
+- 猫猫跳跃、重力下落、落地判定。
+- 障碍物随机生成并从右向左移动。
+- 小鱼随机生成，吃到后加分并触发粒子效果。
+- 分数 HUD、最高分、本地存储。
+- 游戏开始界面、游戏中提示、游戏结束界面。
+- 复制战绩功能，支持 Clipboard API 和备用复制方案。
+- 横屏提示：请旋转手机竖屏游玩。
+
+## 项目结构说明
+
+```txt
+src/
+  components/
+    GameCanvas.tsx       Canvas 挂载和高清屏适配
+    HUD.tsx              游戏中分数和最高分显示
+    StartPanel.tsx       开始界面
+    GameOverPanel.tsx    结束界面、重开和复制战绩
+  game/
+    constants.ts         游戏常量，例如速度、尺寸、重力
+    draw.ts              Canvas 绘制逻辑和图片素材兜底
+    engine.ts            游戏状态更新、生成、碰撞、得分
+    math.ts              数学工具，例如随机数、插值、矩形碰撞
+    types.ts             游戏数据类型
+  hooks/
+    useGameLoop.ts       requestAnimationFrame 游戏循环
+  App.tsx                页面装配、输入事件、移动端适配
+  index.css              全局样式、禁止滚动、HUD 动画
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 游戏循环说明
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+游戏循环使用 `requestAnimationFrame` 实现，封装在 `useGameLoop` 中。每一帧会计算距离上一帧经过的时间 `deltaSeconds`，再交给 `updateGame` 更新游戏状态。
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+这样做的好处是：不同设备帧率不一样，但角色和障碍物的移动速度仍然按时间计算，而不是按帧数计算。比如 60 FPS 和 120 FPS 的手机上，游戏速度不会差一倍。
+
+当前每帧主要做这些事：
+
+1. 更新猫猫的垂直速度和位置。
+2. 移动障碍物和小鱼。
+3. 按随机间隔生成新的障碍物和小鱼。
+4. 判断是否吃到小鱼，吃到后加分并生成粒子。
+5. 判断是否碰到箱子，碰到后进入游戏结束状态。
+6. 根据分数平滑提高游戏速度。
+
+## 碰撞检测说明
+
+项目使用 AABB 矩形碰撞检测。简单来说，就是把猫、箱子、小鱼都看成一个矩形，然后判断两个矩形是否有重叠。
+
+这里有一个小细节：图片绘制尺寸和碰撞盒是分开的。比如猫猫图片可以画得稍微大一点，看起来更可爱，但真正参与碰撞的是更小的矩形。这样玩家不会觉得“明明没碰到也死了”，手感会更舒服。
+
+核心判断逻辑在 `src/game/math.ts`：
+
+```ts
+a.x < b.x + b.width &&
+a.x + a.width > b.x &&
+a.y < b.y + b.height &&
+a.y + a.height > b.y
+```
+
+## 难度曲线说明
+
+游戏速度会随着分数增加而提高，但不是突然跳到一个新速度，而是使用线性插值慢慢靠近目标速度。
+
+这样的处理比直接 `speed = baseSpeed + score * n` 更顺滑，玩家能感觉到游戏越来越快，但不会在某一刻突然变得很难。
+
+障碍物生成间隔也做了随机化，但保留了最小安全间隔，避免连续刷出过近的箱子导致无解。
+
+## AI 素材工作流说明
+
+当前项目素材放在：
+
+```txt
+public/assets/images/
+  cat.png
+  fish.png
+  box.png
+  bg.png
+  logo.png
+```
+
+推荐的素材工作流是：
+
+1. 先用 AI 生成统一风格的角色、道具、障碍物和背景。
+2. 保持透明背景素材用于角色、鱼和箱子。
+3. 把素材放到 `public/assets/images/`，通过固定路径在 Canvas 中加载。
+4. 图片加载完成前继续使用几何图形兜底，保证游戏不会因为素材下载慢而黑屏。
+5. 根据实际视觉效果微调“绘制尺寸”，但不要直接放大碰撞盒。
+
+这个流程的重点不是“只靠 AI 出图”，而是把 AI 素材接进可维护的前端工程里，并保留加载失败和慢网络场景下的兜底体验。
+
+## 后续优化计划
+
+- 增加音效：跳跃、吃鱼、撞箱子、按钮反馈。
+- 增加暂停功能和静音开关。
+- 增加更多障碍物类型，让后期变化更丰富。
+- 增加简单的新手动画，例如开局箭头提示。
+- 增加排行榜接口，支持真实在线排名。
+- 优化素材体积，使用 WebP 或压缩后的 PNG。
+- 加入单元测试，覆盖碰撞检测、速度曲线和最高分逻辑。
+- 增加简单的 E2E 测试，验证开始、跳跃、死亡、重开流程。
+
+## 本地运行方式
+
+安装依赖：
+
+```bash
+npm install
+```
+
+启动开发环境：
+
+```bash
+npm run dev
+```
+
+生产构建：
+
+```bash
+npm run build
+```
+
+预览构建结果：
+
+```bash
+npm run preview
 ```
