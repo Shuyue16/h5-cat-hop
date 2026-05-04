@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-// requestAnimationFrame 是浏览器做游戏循环的标准方式，比 setInterval 更平滑。
+// 使用 requestAnimationFrame 驱动游戏循环，并把毫秒差换算成秒。
 export function useGameLoop(onFrame: (deltaSeconds: number) => void, isRunning: boolean) {
   const frameRef = useRef<number | null>(null)
   const lastTimeRef = useRef<number | null>(null)
