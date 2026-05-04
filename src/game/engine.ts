@@ -28,13 +28,22 @@ import type { Fish, GameState, Obstacle, Particle } from './types'
 
 // 从浏览器本地缓存读取最高分；读取失败时返回 0，避免影响游戏启动。
 export function loadBestScore() {
-  const saved = window.localStorage.getItem(STORAGE_BEST_SCORE_KEY)
-  return saved ? Number(saved) || 0 : 0
+  try {
+    const saved = window.localStorage.getItem(STORAGE_BEST_SCORE_KEY)
+    const score = saved ? Number(saved) : 0
+    return Number.isFinite(score) ? Math.max(0, score) : 0
+  } catch {
+    return 0
+  }
 }
 
-// 把最高分保存到 localStorage，刷新页面后也能保留。
+// 把最高分保存到 localStorage；保存失败时静默跳过，游戏仍然可以继续玩。
 export function saveBestScore(score: number) {
-  window.localStorage.setItem(STORAGE_BEST_SCORE_KEY, String(score))
+  try {
+    window.localStorage.setItem(STORAGE_BEST_SCORE_KEY, String(score))
+  } catch {
+    // 某些浏览器隐私模式会禁用 localStorage，这里不让错误中断游戏。
+  }
 }
 
 // 创建一局新的游戏状态，所有初始数值都集中在这里，方便新手调参。
@@ -273,10 +282,11 @@ export function updateGame(state: GameState, deltaSeconds: number): GameState {
   fish = fish.filter((item) => !item.collected && item.x + item.width > -20)
 
   const hitObstacle = obstacles.some((obstacle) => isRectColliding(cat, obstacle))
-  const bestScore = Math.max(state.bestScore, nextScore)
+  const isNewBestScore = nextScore > state.bestScore
+  const bestScore = isNewBestScore ? nextScore : state.bestScore
 
-  if (hitObstacle) {
-    saveBestScore(bestScore)
+  if (hitObstacle && isNewBestScore) {
+    saveBestScore(nextScore)
   }
 
   return {

@@ -34,12 +34,15 @@ function App() {
   const initialViewport = useMemo(() => getViewportState(), [])
   const [viewport, setViewport] = useState(initialViewport)
   const [state, setState] = useState(() => createInitialState(DESIGN_WIDTH, DESIGN_HEIGHT))
+  const [showGuideTip, setShowGuideTip] = useState(false)
 
   const handleStart = useCallback(() => {
+    setShowGuideTip(true)
     setState((current) => startGame(current))
   }, [])
 
   const handleJump = useCallback(() => {
+    setShowGuideTip(false)
     setState((current) => jump(current))
   }, [])
 
@@ -51,13 +54,33 @@ function App() {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.code === 'Space') {
         event.preventDefault()
-        handleJump()
+        setState((current) => {
+          if (current.status === 'gameOver' || current.status === 'ready') {
+            setShowGuideTip(true)
+            return startGame(current)
+          }
+
+          setShowGuideTip(false)
+          return jump(current)
+        })
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleJump])
+  }, [])
+
+  useEffect(() => {
+    if (state.status !== 'playing' || !showGuideTip) {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      setShowGuideTip(false)
+    }, 2000)
+
+    return () => window.clearTimeout(timer)
+  }, [showGuideTip, state.status])
 
   useEffect(() => {
     function handleResize() {
@@ -76,6 +99,10 @@ function App() {
   // touchstart 覆盖整块游戏区域，手机上点任意位置都能触发跳跃。
   const handleTouchStart = useCallback(
     (event: TouchEvent<HTMLElement>) => {
+      if (event.target instanceof HTMLElement && event.target.closest('button')) {
+        return
+      }
+
       event.preventDefault()
       handleJump()
     },
@@ -102,6 +129,11 @@ function App() {
       >
         <GameCanvas state={state} />
         <HUD score={state.score} bestScore={state.bestScore} />
+        {state.status === 'playing' && showGuideTip && (
+          <div className="pointer-events-none absolute inset-x-5 top-24 rounded-lg bg-slate-950/45 px-4 py-3 text-center text-sm font-bold leading-6 text-white shadow-lg backdrop-blur">
+            点击屏幕让猫猫跳跃，躲开箱子，吃小鱼加分
+          </div>
+        )}
         {state.status === 'ready' && <StartPanel bestScore={state.bestScore} onStart={handleStart} />}
         {state.status === 'gameOver' && (
           <GameOverPanel score={state.score} bestScore={state.bestScore} onRestart={handleStart} />
