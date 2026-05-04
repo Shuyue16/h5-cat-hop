@@ -4,10 +4,9 @@ import type { GameState } from '../game/types'
 
 type GameCanvasProps = {
   state: GameState
-  onJump: () => void
 }
 
-export function GameCanvas({ state, onJump }: GameCanvasProps) {
+export function GameCanvas({ state }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
@@ -18,8 +17,15 @@ export function GameCanvas({ state, onJump }: GameCanvasProps) {
       return
     }
 
-    canvas.width = state.width
-    canvas.height = state.height
+    // 高清屏会有更高的 devicePixelRatio，按 DPR 放大真实画布可以避免 Canvas 发糊。
+    const dpr = Math.min(window.devicePixelRatio || 1, 3)
+    canvas.width = Math.round(state.width * dpr)
+    canvas.height = Math.round(state.height * dpr)
+    canvas.style.width = '100%'
+    canvas.style.height = '100%'
+
+    // 逻辑坐标仍然使用 480x800，绘制时由 Canvas 自动映射到高清像素。
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     drawGame(ctx, state)
   }, [state])
 
@@ -28,7 +34,6 @@ export function GameCanvas({ state, onJump }: GameCanvasProps) {
       ref={canvasRef}
       className="h-full w-full touch-none select-none"
       aria-label="Cat Hop Rush game canvas"
-      onPointerDown={onJump}
     />
   )
 }

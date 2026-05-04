@@ -11,12 +11,22 @@ body,
   height: 100%;
   margin: 0;
   overflow: hidden;
+  position: fixed;
+  inset: 0;
+  touch-action: none;
 }
 
 body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  user-select: none;
+}
+
+button,
+canvas {
+  touch-action: manipulation;
 }
 
 /* 分数变化时让 HUD 轻轻弹一下，提醒玩家刚刚得分。 */

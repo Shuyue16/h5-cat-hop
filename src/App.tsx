@@ -1,25 +1,39 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type TouchEvent } from 'react'
 import { GameCanvas } from './components/GameCanvas'
 import { GameOverPanel } from './components/GameOverPanel'
 import { HUD } from './components/HUD'
 import { StartPanel } from './components/StartPanel'
 import { DESIGN_HEIGHT, DESIGN_WIDTH } from './game/constants'
-import { createInitialState, jump, resizeGame, startGame, updateGame } from './game/engine'
+import { createInitialState, jump, startGame, updateGame } from './game/engine'
 import { useGameLoop } from './hooks/useGameLoop'
 
+type ViewportState = {
+  width: number
+  height: number
+  gameWidth: number
+  gameHeight: number
+  isLandscape: boolean
+}
+
+// 读取当前可视区域。visualViewport 对 iPhone Safari 地址栏收起/展开更友好。
+function getViewportState(): ViewportState {
+  const viewportWidth = window.visualViewport?.width ?? window.innerWidth
+  const viewportHeight = window.visualViewport?.height ?? window.innerHeight
+  const scale = Math.min(viewportWidth / DESIGN_WIDTH, viewportHeight / DESIGN_HEIGHT)
+
+  return {
+    width: viewportWidth,
+    height: viewportHeight,
+    gameWidth: Math.round(DESIGN_WIDTH * scale),
+    gameHeight: Math.round(DESIGN_HEIGHT * scale),
+    isLandscape: viewportWidth > viewportHeight,
+  }
+}
+
 function App() {
-  const gameSize = useMemo(() => {
-    const windowWidth = window.innerWidth
-    const windowHeight = window.innerHeight
-    const scale = Math.min(windowWidth / DESIGN_WIDTH, windowHeight / DESIGN_HEIGHT)
-
-    return {
-      width: Math.round(DESIGN_WIDTH * scale),
-      height: Math.round(DESIGN_HEIGHT * scale),
-    }
-  }, [])
-
-  const [state, setState] = useState(() => createInitialState(gameSize.width, gameSize.height))
+  const initialViewport = useMemo(() => getViewportState(), [])
+  const [viewport, setViewport] = useState(initialViewport)
+  const [state, setState] = useState(() => createInitialState(DESIGN_WIDTH, DESIGN_HEIGHT))
 
   const handleStart = useCallback(() => {
     setState((current) => startGame(current))
@@ -47,23 +61,46 @@ function App() {
 
   useEffect(() => {
     function handleResize() {
-      const scale = Math.min(window.innerWidth / DESIGN_WIDTH, window.innerHeight / DESIGN_HEIGHT)
-      setState((current) =>
-        resizeGame(current, Math.round(DESIGN_WIDTH * scale), Math.round(DESIGN_HEIGHT * scale)),
-      )
+      setViewport(getViewportState())
     }
 
     window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+    window.visualViewport?.addEventListener('resize', handleResize)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      window.visualViewport?.removeEventListener('resize', handleResize)
+    }
   }, [])
 
+  // touchstart 覆盖整块游戏区域，手机上点任意位置都能触发跳跃。
+  const handleTouchStart = useCallback(
+    (event: TouchEvent<HTMLElement>) => {
+      event.preventDefault()
+      handleJump()
+    },
+    [handleJump],
+  )
+
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-slate-950">
+    <main
+      className="fixed inset-0 flex items-center justify-center overflow-hidden bg-slate-950"
+      style={{ width: viewport.width, height: viewport.height }}
+    >
+      {viewport.isLandscape && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950 px-8 text-center text-white">
+          <div className="rounded-lg border border-white/15 bg-white/10 px-6 py-5 text-lg font-bold shadow-2xl backdrop-blur">
+            请旋转手机竖屏游玩
+          </div>
+        </div>
+      )}
       <section
         className="relative overflow-hidden bg-sky-100 shadow-2xl"
-        style={{ width: state.width, height: state.height }}
+        style={{ width: viewport.gameWidth, height: viewport.gameHeight }}
+        onPointerDown={handleJump}
+        onTouchStart={handleTouchStart}
       >
-        <GameCanvas state={state} onJump={handleJump} />
+        <GameCanvas state={state} />
         <HUD score={state.score} bestScore={state.bestScore} />
         {state.status === 'ready' && <StartPanel bestScore={state.bestScore} onStart={handleStart} />}
         {state.status === 'gameOver' && (

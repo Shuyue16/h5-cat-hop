@@ -1,5 +1,5 @@
-export const DESIGN_WIDTH = 390
-export const DESIGN_HEIGHT = 720
+export const DESIGN_WIDTH = 480
+export const DESIGN_HEIGHT = 800
 
 export const STORAGE_BEST_SCORE_KEY = 'cat-hop-rush-best-score'
 
