@@ -16,6 +16,8 @@ export const CAT_X = 74
 export const GRAVITY = 2350
 export const FALL_GRAVITY_MULTIPLIER = 1.18
 export const JUMP_FORCE = -999
+export const DOUBLE_JUMP_FORCE = -880
+export const AIR_JUMP_COUNT = 1
 
 export const BASE_SPEED = 235
 export const MAX_SPEED = 575
@@ -31,9 +33,9 @@ export const GROUND_HEIGHT = 96
 export const OBSTACLE_WIDTH = 52
 export const MIN_OBSTACLE_HEIGHT = 54
 export const MAX_OBSTACLE_HEIGHT = 138
-export const MIN_OBSTACLE_INTERVAL = 1.28
-export const MAX_OBSTACLE_INTERVAL = 1.95
-export const MIN_OBSTACLE_GAP = 330
+export const MIN_OBSTACLE_INTERVAL = 1.55
+export const MAX_OBSTACLE_INTERVAL = 2.25
+export const MIN_OBSTACLE_GAP = 430
 
 export const FISH_SIZE = 30
 export const FISH_INTERVAL = 2.25

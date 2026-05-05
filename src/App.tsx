@@ -4,11 +4,11 @@ import { GameCanvas } from './components/GameCanvas'
 import { GameOverPanel } from './components/GameOverPanel'
 import { HUD } from './components/HUD'
 import { StartPanel } from './components/StartPanel'
-import { loadMutedState, playGameSound, saveMutedState } from './game/audio'
+import { loadMutedState, playGameSound, saveMutedState, startBackgroundMusic, stopBackgroundMusic } from './game/audio'
 import { DESIGN_HEIGHT, DESIGN_WIDTH } from './game/constants'
-import { createInitialState, jump, startGame, updateGame } from './game/engine'
+import { createInitialState, jump, resetGameToReady, startGame, togglePause, updateGame } from './game/engine'
 import { loadLowPerformanceState, saveLowPerformanceState } from './game/settings'
-import { getNewlyUnlockedCgChapters, type CgChapter } from './game/story'
+import { getNewlyUnlockedCgChapters, getUnlockedCgChapters, type CgChapter } from './game/story'
 import { useGameLoop } from './hooks/useGameLoop'
 
 type ViewportState = {
@@ -57,20 +57,35 @@ function App() {
     setActiveCgChapter(null)
     setPendingCgChapters([])
     hasPreparedGameOverCgRef.current = false
+    startBackgroundMusic(isMuted)
     setState((current) => {
       runStartTotalOrangeRef.current = current.totalOrangeCount
       return startGame(current)
     })
-  }, [])
+  }, [isMuted])
+
+  const handleRestartToStart = useCallback(() => {
+    setShowGuideTip(false)
+    setActiveCgChapter(null)
+    setPendingCgChapters([])
+    hasPreparedGameOverCgRef.current = false
+    startBackgroundMusic(isMuted)
+    setState((current) => resetGameToReady(current))
+  }, [isMuted])
 
   const handleJump = useCallback(() => {
     if (activeCgChapter) {
       return
     }
 
+    startBackgroundMusic(isMuted)
     setShowGuideTip(false)
     setState((current) => jump(current))
-  }, [activeCgChapter])
+  }, [activeCgChapter, isMuted])
+
+  const handleTogglePause = useCallback(() => {
+    setState((current) => togglePause(current))
+  }, [])
 
   const handleShowCg = useCallback(() => {
     setPendingCgChapters((current) => {
@@ -82,6 +97,14 @@ function App() {
 
   const handleCloseCg = useCallback(() => {
     setActiveCgChapter(null)
+  }, [])
+
+  const handleShowCgRecords = useCallback(() => {
+    setState((current) => {
+      const unlockedChapters = getUnlockedCgChapters(current.totalOrangeCount)
+      setActiveCgChapter(unlockedChapters.at(-1) ?? null)
+      return current
+    })
   }, [])
 
   useGameLoop((deltaSeconds) => {
@@ -97,7 +120,7 @@ function App() {
     }
 
     setState((current) => updateGame(current, deltaSeconds))
-  }, !activeCgChapter && (state.status === 'playing' || state.status === 'crashing' || state.shakeTimer > 0 || state.particles.length > 0))
+  }, !activeCgChapter && state.status !== 'paused' && (state.status === 'playing' || state.status === 'crashing' || state.shakeTimer > 0 || state.particles.length > 0))
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -117,18 +140,23 @@ function App() {
           setActiveCgChapter(null)
           setPendingCgChapters([])
           hasPreparedGameOverCgRef.current = false
+          startBackgroundMusic(isMuted)
           runStartTotalOrangeRef.current = current.totalOrangeCount
           return startGame(current)
         }
 
         setShowGuideTip(false)
+        if (current.status === 'paused') {
+          return togglePause(current)
+        }
+
         return jump(current)
       })
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activeCgChapter])
+  }, [activeCgChapter, isMuted])
 
   useEffect(() => {
     if (state.status !== 'playing' || !showGuideTip) {
@@ -147,6 +175,14 @@ function App() {
       playGameSound(state.audioCue.type, isMuted)
     }
   }, [isMuted, state.audioCue])
+
+  useEffect(() => {
+    if (isMuted) {
+      stopBackgroundMusic()
+    } else if (state.status !== 'ready') {
+      startBackgroundMusic(false)
+    }
+  }, [isMuted, state.status])
 
   useEffect(() => {
     if (state.status !== 'gameOver') {
@@ -192,6 +228,11 @@ function App() {
     setIsMuted((current) => {
       const next = !current
       saveMutedState(next)
+      if (next) {
+        stopBackgroundMusic()
+      } else {
+        startBackgroundMusic(false)
+      }
       return next
     })
   }, [])
@@ -231,6 +272,16 @@ function App() {
               onPointerDown={(event) => event.stopPropagation()}
             >
               FPS
+            </button>
+          )}
+          {(state.status === 'playing' || state.status === 'paused') && (
+            <button
+              type="button"
+              className="rounded-full bg-slate-950/55 px-3 py-2 text-xs font-bold text-white shadow-lg backdrop-blur transition active:scale-90"
+              onClick={handleTogglePause}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              {state.status === 'paused' ? '继续' : '暂停'}
             </button>
           )}
           <button
@@ -278,7 +329,33 @@ function App() {
             点按跳跃，收集橘子，躲开酸柠檬路障
           </div>
         )}
-        {state.status === 'ready' && <StartPanel bestScore={state.bestScore} onStart={handleStart} />}
+        {state.status === 'paused' && (
+          <div
+            className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/35 px-6"
+            onPointerDown={(event) => event.stopPropagation()}
+            onTouchStart={(event) => event.stopPropagation()}
+          >
+            <div className="w-full max-w-xs rounded-lg bg-white/92 p-6 text-center shadow-xl backdrop-blur">
+              <p className="text-sm font-black text-orange-600">游戏已暂停</p>
+              <h2 className="mt-2 text-3xl font-black text-slate-900">猫猫歇一下</h2>
+              <button
+                type="button"
+                className="mt-6 w-full rounded-md bg-orange-500 px-4 py-3 text-base font-bold text-white shadow-sm transition duration-100 hover:bg-orange-600 active:scale-90 active:brightness-110"
+                onClick={handleTogglePause}
+              >
+                继续跑
+              </button>
+            </div>
+          </div>
+        )}
+        {state.status === 'ready' && (
+          <StartPanel
+            bestScore={state.bestScore}
+            unlockedCgCount={getUnlockedCgChapters(state.totalOrangeCount).length}
+            onShowCgRecords={handleShowCgRecords}
+            onStart={handleStart}
+          />
+        )}
         {state.status === 'gameOver' && (
           <GameOverPanel
             score={state.score}
@@ -287,7 +364,7 @@ function App() {
             totalOrangeCount={state.totalOrangeCount}
             hasNewCg={pendingCgChapters.length > 0}
             onShowCg={handleShowCg}
-            onRestart={handleStart}
+            onRestart={handleRestartToStart}
           />
         )}
         {activeCgChapter && <CgStoryPanel chapter={activeCgChapter} onClose={handleCloseCg} />}

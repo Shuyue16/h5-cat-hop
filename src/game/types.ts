@@ -1,4 +1,4 @@
-export type GameStatus = 'ready' | 'playing' | 'crashing' | 'gameOver'
+export type GameStatus = 'ready' | 'playing' | 'paused' | 'crashing' | 'gameOver'
 
 export type Rect = {
   x: number
@@ -11,6 +11,7 @@ export type Cat = Rect & {
   velocityY: number
   isOnGround: boolean
   squashTimer: number
+  airJumpsRemaining: number
 }
 
 export type Obstacle = Rect & {

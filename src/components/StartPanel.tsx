@@ -1,9 +1,11 @@
 type StartPanelProps = {
   bestScore: number
+  unlockedCgCount: number
+  onShowCgRecords: () => void
   onStart: () => void
 }
 
-export function StartPanel({ bestScore, onStart }: StartPanelProps) {
+export function StartPanel({ bestScore, unlockedCgCount, onShowCgRecords, onStart }: StartPanelProps) {
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-sky-950/25 px-6">
       <div className="w-full max-w-xs rounded-lg bg-white/92 p-6 text-center shadow-xl backdrop-blur">
@@ -15,7 +17,15 @@ export function StartPanel({ bestScore, onStart }: StartPanelProps) {
         <p className="mt-4 text-sm font-bold text-amber-700">最高分 {bestScore}</p>
         <button
           type="button"
-          className="mt-6 w-full rounded-md bg-orange-500 px-4 py-3 text-base font-bold text-white shadow-sm transition duration-100 hover:bg-orange-600 active:scale-90 active:brightness-110"
+          className="mt-4 w-full rounded-md bg-amber-100 px-4 py-3 text-sm font-black text-amber-800 shadow-sm transition duration-100 hover:bg-amber-200 active:scale-90 active:brightness-105 disabled:cursor-not-allowed disabled:opacity-55"
+          onClick={onShowCgRecords}
+          disabled={unlockedCgCount === 0}
+        >
+          CG记录 {unlockedCgCount}/4
+        </button>
+        <button
+          type="button"
+          className="mt-3 w-full rounded-md bg-orange-500 px-4 py-3 text-base font-bold text-white shadow-sm transition duration-100 hover:bg-orange-600 active:scale-90 active:brightness-110"
           onClick={onStart}
         >
           出发收橘子

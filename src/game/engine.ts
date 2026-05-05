@@ -4,6 +4,8 @@ import {
   CAT_SQUASH_TIME,
   CAT_WIDTH,
   CAT_X,
+  AIR_JUMP_COUNT,
+  DOUBLE_JUMP_FORCE,
   DOUBLE_SCORE_DURATION,
   EASY_START_SECONDS,
   FALL_GRAVITY_MULTIPLIER,
@@ -111,6 +113,7 @@ export function createInitialState(width: number, height: number, bestScore = lo
       velocityY: 0,
       isOnGround: true,
       squashTimer: 0,
+      airJumpsRemaining: AIR_JUMP_COUNT,
     },
     obstacles: [],
     fish: [],
@@ -154,6 +157,26 @@ export function startGame(state: GameState): GameState {
   }
 }
 
+export function resetGameToReady(state: GameState): GameState {
+  return {
+    ...createInitialState(state.width, state.height, state.bestScore),
+    totalOrangeCount: state.totalOrangeCount,
+    lowPerformance: state.lowPerformance,
+  }
+}
+
+export function togglePause(state: GameState): GameState {
+  if (state.status === 'playing') {
+    return { ...state, status: 'paused' }
+  }
+
+  if (state.status === 'paused') {
+    return { ...state, status: 'playing' }
+  }
+
+  return state
+}
+
 // 画布尺寸变化时重建状态，避免手机屏幕旋转或窗口变化后坐标错位。
 export function resizeGame(state: GameState, width: number, height: number): GameState {
   const next = createInitialState(width, height, state.bestScore)
@@ -195,7 +218,14 @@ function createJumpParticles(state: GameState, startId: number): { particles: Pa
 
 // 玩家输入时让猫跳起来；只有在地面上才允许起跳，长按不会连续跳。
 export function jump(state: GameState): GameState {
-  if (state.status !== 'playing' || !state.cat.isOnGround) {
+  if (state.status !== 'playing') {
+    return state
+  }
+
+  const isGroundJump = state.cat.isOnGround
+  const canAirJump = !state.cat.isOnGround && state.cat.airJumpsRemaining > 0
+
+  if (!isGroundJump && !canAirJump) {
     return state
   }
 
@@ -205,9 +235,10 @@ export function jump(state: GameState): GameState {
     ...state,
     cat: {
       ...state.cat,
-      velocityY: JUMP_FORCE,
+      velocityY: isGroundJump ? JUMP_FORCE : DOUBLE_JUMP_FORCE,
       isOnGround: false,
       squashTimer: CAT_SQUASH_TIME,
+      airJumpsRemaining: isGroundJump ? AIR_JUMP_COUNT : state.cat.airJumpsRemaining - 1,
     },
     particles: [...state.particles, ...dust.particles],
     audioCue: { id: state.nextId, type: 'jump' },
@@ -270,13 +301,13 @@ function createObstacle(state: GameState): Obstacle {
 // 阶段越高，偶尔生成“双箱组合”，但间距保守，避免突然无解。
 function createObstacleGroup(state: GameState): { obstacles: Obstacle[]; nextId: number } {
   const first = createObstacle(state)
-  const comboChance = clamp((state.level - 1) * 0.08, 0, 0.34)
+  const comboChance = clamp((state.level - 2) * 0.04, 0, 0.18)
 
-  if (state.level < 2 || Math.random() > comboChance) {
+  if (state.level < 3 || Math.random() > comboChance) {
     return { obstacles: [first], nextId: state.nextId + 1 }
   }
 
-  const gap = randomInt(150, 230)
+  const gap = randomInt(260, 360)
   const heightScale = randomFloat(0.58, 0.88)
   const secondHeight = Math.round(clamp(first.height * heightScale, MIN_OBSTACLE_HEIGHT, MAX_OBSTACLE_HEIGHT))
   const second: Obstacle = {
@@ -412,6 +443,7 @@ function updateCat(state: GameState, deltaSeconds: number) {
     y: hasLanded ? groundCatY : nextCatY,
     velocityY: hasLanded ? 0 : nextVelocityY,
     isOnGround: hasLanded,
+    airJumpsRemaining: hasLanded ? AIR_JUMP_COUNT : state.cat.airJumpsRemaining,
     squashTimer: Math.max(0, state.cat.squashTimer - deltaSeconds),
   }
 }
@@ -515,6 +547,10 @@ export function updateGame(state: GameState, deltaSeconds: number): GameState {
 
   if (state.status === 'crashing') {
     return updateCrashingState(state, safeDelta)
+  }
+
+  if (state.status === 'paused') {
+    return state
   }
 
   if (state.status !== 'playing') {
