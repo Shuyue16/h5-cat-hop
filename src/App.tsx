@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { CgStoryPanel } from './components/CgStoryPanel'
 import { GameCanvas } from './components/GameCanvas'
 import { GameOverPanel } from './components/GameOverPanel'
@@ -73,15 +73,43 @@ function App() {
     setState((current) => resetGameToReady(current))
   }, [])
 
-  const handleJump = useCallback(() => {
+  const requestJump = useCallback(() => {
     if (activeCgChapter) {
       return
     }
 
     playBgm()
-    setShowGuideTip(false)
-    setState((current) => jump(current))
+    setState((current) => {
+      if (current.status === 'gameOver' || current.status === 'ready') {
+        setShowGuideTip(true)
+        setActiveCgChapter(null)
+        setPendingCgChapters([])
+        hasPreparedGameOverCgRef.current = false
+        runStartTotalOrangeRef.current = current.totalOrangeCount
+        return startGame(current)
+      }
+
+      setShowGuideTip(false)
+
+      if (current.status === 'paused') {
+        return togglePause(current)
+      }
+
+      return jump(current)
+    })
   }, [activeCgChapter])
+
+  const handleGamePointerDown = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      if (event.target instanceof HTMLElement && event.target.closest('button')) {
+        return
+      }
+
+      event.preventDefault()
+      requestJump()
+    },
+    [requestJump],
+  )
 
   const handleTogglePause = useCallback(() => {
     setState((current) => togglePause(current))
@@ -138,29 +166,12 @@ function App() {
         return
       }
 
-      setState((current) => {
-        if (current.status === 'gameOver' || current.status === 'ready') {
-          setShowGuideTip(true)
-          setActiveCgChapter(null)
-          setPendingCgChapters([])
-          hasPreparedGameOverCgRef.current = false
-          playBgm()
-          runStartTotalOrangeRef.current = current.totalOrangeCount
-          return startGame(current)
-        }
-
-        setShowGuideTip(false)
-        if (current.status === 'paused') {
-          return togglePause(current)
-        }
-
-        return jump(current)
-      })
+      requestJump()
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activeCgChapter])
+  }, [activeCgChapter, requestJump])
 
   useEffect(() => {
     if (state.status !== 'playing' || !showGuideTip) {
@@ -222,18 +233,6 @@ function App() {
     }
   }, [])
 
-  const handleTouchStart = useCallback(
-    (event: TouchEvent<HTMLElement>) => {
-      if (event.target instanceof HTMLElement && event.target.closest('button')) {
-        return
-      }
-
-      event.preventDefault()
-      handleJump()
-    },
-    [handleJump],
-  )
-
   const handleToggleMute = useCallback(() => {
     setIsMuted((current) => {
       const next = !current
@@ -268,10 +267,9 @@ function App() {
         </div>
       )}
       <section
-        className="relative overflow-hidden bg-sky-100 shadow-2xl"
+        className="relative touch-none overflow-hidden bg-sky-100 shadow-2xl"
         style={{ width: viewport.gameWidth, height: viewport.gameHeight }}
-        onPointerDown={handleJump}
-        onTouchStart={handleTouchStart}
+        onPointerDown={handleGamePointerDown}
       >
         <div className="absolute bottom-4 right-4 z-10 flex gap-2">
           {import.meta.env.DEV && (
