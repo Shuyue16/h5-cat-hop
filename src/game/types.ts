@@ -11,7 +11,7 @@ export type Cat = Rect & {
   velocityY: number
   isOnGround: boolean
   squashTimer: number
-  airJumpsRemaining: number
+  remainingAirJumps: number
 }
 
 export type Obstacle = Rect & {

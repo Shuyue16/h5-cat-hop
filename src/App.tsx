@@ -4,7 +4,7 @@ import { GameCanvas } from './components/GameCanvas'
 import { GameOverPanel } from './components/GameOverPanel'
 import { HUD } from './components/HUD'
 import { StartPanel } from './components/StartPanel'
-import { loadMutedState, playGameSound, saveMutedState, startBackgroundMusic, stopBackgroundMusic } from './game/audio'
+import { getBgmMuted, initBgm, playBgm, playGameSound, setBgmMuted, stopBgm } from './game/audio'
 import { DESIGN_HEIGHT, DESIGN_WIDTH } from './game/constants'
 import { createInitialState, jump, resetGameToReady, startGame, togglePause, updateGame } from './game/engine'
 import { loadLowPerformanceState, saveLowPerformanceState } from './game/settings'
@@ -42,7 +42,7 @@ function App() {
     lowPerformance: initialLowPerformance,
   }))
   const [showGuideTip, setShowGuideTip] = useState(false)
-  const [isMuted, setIsMuted] = useState(() => loadMutedState())
+  const [isMuted, setIsMuted] = useState(() => getBgmMuted())
   const [showFps, setShowFps] = useState(false)
   const [fps, setFps] = useState(0)
   const [pendingCgChapters, setPendingCgChapters] = useState<CgChapter[]>([])
@@ -57,31 +57,31 @@ function App() {
     setActiveCgChapter(null)
     setPendingCgChapters([])
     hasPreparedGameOverCgRef.current = false
-    startBackgroundMusic(isMuted)
+    playBgm()
     setState((current) => {
       runStartTotalOrangeRef.current = current.totalOrangeCount
       return startGame(current)
     })
-  }, [isMuted])
+  }, [])
 
   const handleRestartToStart = useCallback(() => {
     setShowGuideTip(false)
     setActiveCgChapter(null)
     setPendingCgChapters([])
     hasPreparedGameOverCgRef.current = false
-    startBackgroundMusic(isMuted)
+    stopBgm()
     setState((current) => resetGameToReady(current))
-  }, [isMuted])
+  }, [])
 
   const handleJump = useCallback(() => {
     if (activeCgChapter) {
       return
     }
 
-    startBackgroundMusic(isMuted)
+    playBgm()
     setShowGuideTip(false)
     setState((current) => jump(current))
-  }, [activeCgChapter, isMuted])
+  }, [activeCgChapter])
 
   const handleTogglePause = useCallback(() => {
     setState((current) => togglePause(current))
@@ -123,6 +123,10 @@ function App() {
   }, !activeCgChapter && state.status !== 'paused' && (state.status === 'playing' || state.status === 'crashing' || state.shakeTimer > 0 || state.particles.length > 0))
 
   useEffect(() => {
+    initBgm()
+  }, [])
+
+  useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.code !== 'Space') {
         return
@@ -140,7 +144,7 @@ function App() {
           setActiveCgChapter(null)
           setPendingCgChapters([])
           hasPreparedGameOverCgRef.current = false
-          startBackgroundMusic(isMuted)
+          playBgm()
           runStartTotalOrangeRef.current = current.totalOrangeCount
           return startGame(current)
         }
@@ -156,7 +160,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activeCgChapter, isMuted])
+  }, [activeCgChapter])
 
   useEffect(() => {
     if (state.status !== 'playing' || !showGuideTip) {
@@ -178,11 +182,17 @@ function App() {
 
   useEffect(() => {
     if (isMuted) {
-      stopBackgroundMusic()
-    } else if (state.status !== 'ready') {
-      startBackgroundMusic(false)
+      stopBgm()
+    } else if (state.status === 'playing' || state.status === 'crashing' || state.status === 'paused') {
+      playBgm()
     }
   }, [isMuted, state.status])
+
+  useEffect(() => {
+    if (state.status === 'gameOver') {
+      stopBgm()
+    }
+  }, [state.status])
 
   useEffect(() => {
     if (state.status !== 'gameOver') {
@@ -227,15 +237,15 @@ function App() {
   const handleToggleMute = useCallback(() => {
     setIsMuted((current) => {
       const next = !current
-      saveMutedState(next)
+      setBgmMuted(next)
       if (next) {
-        stopBackgroundMusic()
-      } else {
-        startBackgroundMusic(false)
+        stopBgm()
+      } else if (state.status === 'playing' || state.status === 'crashing' || state.status === 'paused') {
+        playBgm()
       }
       return next
     })
-  }, [])
+  }, [state.status])
 
   const handleToggleLowPerformance = useCallback(() => {
     setState((current) => {

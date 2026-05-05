@@ -113,7 +113,8 @@ export function createInitialState(width: number, height: number, bestScore = lo
       velocityY: 0,
       isOnGround: true,
       squashTimer: 0,
-      airJumpsRemaining: AIR_JUMP_COUNT,
+      // 落地状态默认拥有完整的空中跳跃次数。
+      remainingAirJumps: AIR_JUMP_COUNT,
     },
     obstacles: [],
     fish: [],
@@ -216,14 +217,14 @@ function createJumpParticles(state: GameState, startId: number): { particles: Pa
   return { particles, nextId: startId + count }
 }
 
-// 玩家输入时让猫跳起来；只有在地面上才允许起跳，长按不会连续跳。
+// 玩家输入时让猫跳起来；地面跳不消耗空中跳，二段跳才扣 remainingAirJumps。
 export function jump(state: GameState): GameState {
   if (state.status !== 'playing') {
     return state
   }
 
   const isGroundJump = state.cat.isOnGround
-  const canAirJump = !state.cat.isOnGround && state.cat.airJumpsRemaining > 0
+  const canAirJump = !state.cat.isOnGround && state.cat.remainingAirJumps > 0
 
   if (!isGroundJump && !canAirJump) {
     return state
@@ -238,7 +239,7 @@ export function jump(state: GameState): GameState {
       velocityY: isGroundJump ? JUMP_FORCE : DOUBLE_JUMP_FORCE,
       isOnGround: false,
       squashTimer: CAT_SQUASH_TIME,
-      airJumpsRemaining: isGroundJump ? AIR_JUMP_COUNT : state.cat.airJumpsRemaining - 1,
+      remainingAirJumps: isGroundJump ? AIR_JUMP_COUNT : state.cat.remainingAirJumps - 1,
     },
     particles: [...state.particles, ...dust.particles],
     audioCue: { id: state.nextId, type: 'jump' },
@@ -443,7 +444,8 @@ function updateCat(state: GameState, deltaSeconds: number) {
     y: hasLanded ? groundCatY : nextCatY,
     velocityY: hasLanded ? 0 : nextVelocityY,
     isOnGround: hasLanded,
-    airJumpsRemaining: hasLanded ? AIR_JUMP_COUNT : state.cat.airJumpsRemaining,
+    // 落地后恢复空中跳跃次数，避免二段跳变成无限连跳。
+    remainingAirJumps: hasLanded ? AIR_JUMP_COUNT : state.cat.remainingAirJumps,
     squashTimer: Math.max(0, state.cat.squashTimer - deltaSeconds),
   }
 }

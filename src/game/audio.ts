@@ -1,17 +1,18 @@
 import { STORAGE_AUDIO_MUTED_KEY } from './constants'
 import type { AudioCueType } from './types'
 
+const BGM_SRC = '/assets/audio/bgm.mp3'
+const BGM_VOLUME = 0.35
+
 let audioContext: AudioContext | null = null
-let musicGain: GainNode | null = null
-let musicTimer: number | null = null
-let musicStep = 0
+let bgmAudio: HTMLAudioElement | null = null
 
 type AudioWindow = Window & {
   AudioContext?: typeof AudioContext
   webkitAudioContext?: typeof AudioContext
 }
 
-export function loadMutedState() {
+export function getBgmMuted() {
   try {
     return window.localStorage.getItem(STORAGE_AUDIO_MUTED_KEY) === 'true'
   } catch {
@@ -19,13 +20,62 @@ export function loadMutedState() {
   }
 }
 
-export function saveMutedState(isMuted: boolean) {
+export function setBgmMuted(value: boolean) {
   try {
-    window.localStorage.setItem(STORAGE_AUDIO_MUTED_KEY, String(isMuted))
+    window.localStorage.setItem(STORAGE_AUDIO_MUTED_KEY, String(value))
   } catch {
-    // Ignore storage failures in private browsing or restricted WebViews.
+    // localStorage 不可用时，只影响本次静音状态持久化，不影响游戏继续运行。
+  }
+
+  if (bgmAudio) {
+    bgmAudio.muted = value
+  }
+
+  if (value) {
+    stopBgm()
   }
 }
+
+export function initBgm() {
+  if (bgmAudio) {
+    return bgmAudio
+  }
+
+  const audio = new Audio(BGM_SRC)
+  audio.loop = true
+  audio.volume = BGM_VOLUME
+  audio.muted = getBgmMuted()
+  audio.preload = 'auto'
+  bgmAudio = audio
+
+  return bgmAudio
+}
+
+export function playBgm() {
+  if (getBgmMuted()) {
+    return
+  }
+
+  const audio = initBgm()
+  audio.muted = false
+
+  void audio.play().catch(() => {
+    // 移动端或浏览器自动播放策略可能会拦截，静默处理，等待下一次用户交互再尝试。
+  })
+}
+
+export function stopBgm() {
+  if (!bgmAudio) {
+    return
+  }
+
+  bgmAudio.pause()
+  bgmAudio.currentTime = 0
+}
+
+// 兼容原有命名，短音效仍然沿用同一个静音状态。
+export const loadMutedState = getBgmMuted
+export const saveMutedState = setBgmMuted
 
 function getAudioContext() {
   const audioWindow = window as AudioWindow
@@ -43,16 +93,6 @@ function getAudioContext() {
   }
 
   return context
-}
-
-function getMusicGain(context: AudioContext) {
-  if (!musicGain) {
-    musicGain = context.createGain()
-    musicGain.gain.value = 0.055
-    musicGain.connect(context.destination)
-  }
-
-  return musicGain
 }
 
 function playTone(startFrequency: number, endFrequency: number, duration: number, type: OscillatorType, volume: number) {
@@ -78,71 +118,6 @@ function playTone(startFrequency: number, endFrequency: number, duration: number
   gain.connect(context.destination)
   oscillator.start(now)
   oscillator.stop(now + duration + 0.02)
-}
-
-function playMusicNote(frequency: number, duration: number, delay: number, volume = 0.85) {
-  const context = getAudioContext()
-
-  if (!context) {
-    return
-  }
-
-  const output = getMusicGain(context)
-  const oscillator = context.createOscillator()
-  const gain = context.createGain()
-  const now = context.currentTime + delay
-
-  oscillator.type = 'triangle'
-  oscillator.frequency.setValueAtTime(frequency, now)
-
-  gain.gain.setValueAtTime(0.0001, now)
-  gain.gain.linearRampToValueAtTime(0.16 * volume, now + 0.025)
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration)
-
-  oscillator.connect(gain)
-  gain.connect(output)
-  oscillator.start(now)
-  oscillator.stop(now + duration + 0.03)
-}
-
-function scheduleMusicBar() {
-  const notes = [523.25, 659.25, 783.99, 659.25, 587.33, 659.25, 523.25, 392]
-  const bass = [130.81, 196, 146.83, 196]
-
-  for (let index = 0; index < notes.length; index += 1) {
-    const beat = index * 0.18
-    const melodyIndex = (musicStep + index) % notes.length
-    playMusicNote(notes[melodyIndex], 0.14, beat, index % 2 === 0 ? 0.9 : 0.72)
-  }
-
-  for (let index = 0; index < bass.length; index += 1) {
-    playMusicNote(bass[(Math.floor(musicStep / 2) + index) % bass.length], 0.18, index * 0.36, 0.38)
-  }
-
-  musicStep = (musicStep + 1) % notes.length
-}
-
-export function startBackgroundMusic(isMuted: boolean) {
-  if (isMuted || musicTimer !== null) {
-    return
-  }
-
-  const context = getAudioContext()
-
-  if (!context) {
-    return
-  }
-
-  getMusicGain(context)
-  scheduleMusicBar()
-  musicTimer = window.setInterval(scheduleMusicBar, 1440)
-}
-
-export function stopBackgroundMusic() {
-  if (musicTimer !== null) {
-    window.clearInterval(musicTimer)
-    musicTimer = null
-  }
 }
 
 export function playGameSound(type: AudioCueType, isMuted: boolean) {
